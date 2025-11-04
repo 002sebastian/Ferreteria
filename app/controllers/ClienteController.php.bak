@@ -1,0 +1,63 @@
+<?php
+class ClienteController {
+    private $clienteModel;
+    
+    public function __construct($db) {
+        $this->clienteModel = new ClienteModel($db);
+    }
+    
+    public function listar() {
+        $clientes = $this->clienteModel->getAll();
+        
+        echo "<h2>👥 Lista de Clientes</h2>";
+        
+        if (empty($clientes)) {
+            echo "<p>No hay clientes registrados</p>";
+        } else {
+            echo "<table border='1' style='width:100%'>";
+            echo "<tr><th>ID</th><th>NIT</th><th>Nombre</th><th>Teléfono</th><th>Estado</th></tr>";
+            foreach ($clientes as $cliente) {
+                echo "<tr>";
+                echo "<td>{$cliente['id']}</td>";
+                echo "<td>{$cliente['nit']}</td>";
+                echo "<td>{$cliente['nombre']}</td>";
+                echo "<td>{$cliente['telefono']}</td>";
+                echo "<td>{$cliente['estado']}</td>";
+                echo "</tr>";
+            }
+            echo "</table>";
+        }
+        
+        echo '<br><a href="index.php?controller=cliente&action=agregar">➕ Agregar Cliente</a>';
+        echo '<br><a href="index.php">🏠 Inicio</a>';
+    }
+    
+    public function agregar() {
+        if ($_POST) {
+            $data = [
+                'nit' => $_POST['nit'],
+                'nombre' => $_POST['nombre'],
+                'direccion' => $_POST['direccion'],
+                'telefono' => $_POST['telefono']
+            ];
+            
+            if ($this->clienteModel->create($data)) {
+                header('Location: index.php?controller=cliente&action=listar&exito=1');
+            } else {
+                header('Location: index.php?controller=cliente&action=agregar&error=1');
+            }
+            exit;
+        }
+        
+        echo "<h2>➕ Agregar Cliente</h2>";
+        echo '<form method="POST">';
+        echo '<p>NIT: <input type="text" name="nit" required></p>';
+        echo '<p>Nombre: <input type="text" name="nombre" required></p>';
+        echo '<p>Dirección: <input type="text" name="direccion"></p>';
+        echo '<p>Teléfono: <input type="text" name="telefono"></p>';
+        echo '<button type="submit">Guardar</button>';
+        echo '</form>';
+        echo '<br><a href="index.php?controller=cliente&action=listar">← Volver</a>';
+    }
+}
+?>
