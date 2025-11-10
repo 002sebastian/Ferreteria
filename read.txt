@@ -1,7 +1,0 @@
-PHP 8.2.12
-
-en cmd ir hasta C:\Ferreteria\public>
-y correre:
-php -S localhost:8000
-
-php -S localhost:8080
