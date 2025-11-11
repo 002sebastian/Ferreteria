@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   @vite(['resources/css/app.css','resources/js/app.js'])
 <style>
+         {{-- color barra superior --}}
   :root{
     --bg:#0f172a; --fg:#fff; --fg2:#e2e8f0; --accent:#2563eb;
     --line:#e5e7eb; --muted:#64748b;
@@ -14,7 +15,7 @@
   body{font-family:system-ui,Segoe UI,Roboto,Arial; margin:0; background:#f8fafc; color:#0f172a;}
   .navbar{background:var(--bg); color:var(--fg); padding:10px 20px; display:flex; align-items:center; gap:16px;}
   .navbar a{color:var(--fg2); text-decoration:none; padding:8px 10px; border-radius:8px;}
-  .navbar a.active,.navbar a:hover{background:rgba(255,255,255,.08); color:#fff;}
+  .navbar a.active,.navbar a:hover{background:rgba(218, 53, 53, 0.08); color:#fff;}
   .brand{font-weight:800; letter-spacing:.5px; margin-right:8px; color:#fff;}
   .wrap{max-width:1100px; margin:24px auto; padding:0 16px;}
   .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px;}
@@ -44,6 +45,8 @@
     <div class="brand">Ferretería</div>
     <a href="{{ route('home') }}" class="{{ request()->routeIs('home') ? 'active' : '' }}">Inicio</a>
     <a href="{{ route('clientes.index') }}" class="{{ request()->routeIs('clientes.*') ? 'active' : '' }}">Clientes</a>
+    <a href="{{ route('productos.index') }}" class="{{ request()->routeIs('productos.*') ? 'active' : '' }}">Productos</a>
+
     {{-- Aquí agregaremos más pestañas: Productos, Pedidos, etc. --}}
   </nav>
 
