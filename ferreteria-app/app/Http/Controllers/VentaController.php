@@ -113,77 +113,96 @@ class VentaController extends Controller
     }
 
     // FACTURAR: crea pedido, sus detalles, (opcional pago), y la factura
-    public function facturar(Request $req)
-    {
-        $req->validate([
-            'id_cliente'    => 'nullable|integer|exists:cliente,id_cliente',
-            'id_forma_pago' => 'nullable|integer|exists:forma_pago,id_forma_pago',
+   public function facturar(Request $req)
+{
+    $req->validate([
+        'id_cliente'    => 'nullable|integer|exists:cliente,id_cliente',
+        'id_forma_pago' => 'nullable|integer|exists:forma_pago,id_forma_pago',
+    ]);
+
+    $cart = $req->session()->get('cart', []);
+    if (empty($cart)) return redirect()->route('venta.index')->with('ok','Carrito vacío');
+
+    $resumen = $this->totales($cart);
+
+    DB::beginTransaction();
+    try {
+        // 1) Validar stock con lock pesimista (evita ventas simultáneas inconsistentes)
+        $productosBloqueados = [];
+        foreach ($cart as $idProd => $it) {
+            $prod = Producto::where('id_producto', (int)$idProd)->lockForUpdate()->firstOrFail();
+            if ($prod->stock < (int)$it['cantidad']) {
+                throw new \RuntimeException("Stock insuficiente para '{$prod->nombre}'. Disponible: {$prod->stock}, requerido: {$it['cantidad']}.");
+            }
+            $productosBloqueados[$idProd] = $prod;
+        }
+
+        // 2) Crear pedido (cabecera)
+        $idPedido = $this->nextId(Pedido::class, 'id_pedido');
+        $pedido = Pedido::create([
+            'id_pedido'    => $idPedido,
+            'id_cliente'   => $req->input('id_cliente'),
+            'fecha_pedido' => now()->format('Y-m-d H:i:s'),
+            'id_estado'    => null,
+            'id_ferreteria'=> null,
         ]);
 
-        $cart = $req->session()->get('cart', []);
-        if(empty($cart)) return redirect()->route('venta.index')->with('ok','Carrito vacío');
+        // 3) Crear detalles y descontar stock
+        $idDetalle = $this->nextId(DetallePedido::class, 'id_detalle_pedido');
+        foreach ($cart as $idProd => $it) {
+            $prod = $productosBloqueados[$idProd];
 
-        $resumen = $this->totales($cart);
-
-        DB::beginTransaction();
-        try {
-            // Crear pedido (cabecera). Campos opcionales (id_estado, id_ferreteria) los dejamos null si no los usas aún
-            $idPedido = $this->nextId(Pedido::class, 'id_pedido');
-            $pedido = Pedido::create([
-                'id_pedido'    => $idPedido,
-                'id_cliente'   => $req->input('id_cliente'),
-                'fecha_pedido' => now()->format('Y-m-d H:i:s'),
-                'id_estado'    => null,
-                'id_ferreteria'=> null,
+            // detalle
+            DetallePedido::create([
+                'id_detalle_pedido' => $idDetalle++,
+                'id_pedido'         => $pedido->id_pedido,
+                'id_producto'       => (int)$idProd,
+                'cantidad'          => (int)$it['cantidad'],
+                'precio_unitario'   => (float)$it['precio'],
+                'descuento'         => 0,
             ]);
 
-            // Detalles del pedido (respeta columna generada 'total')
-            $idDetalle = $this->nextId(DetallePedido::class, 'id_detalle_pedido');
-            foreach($cart as $idProd => $it){
-                DetallePedido::create([
-                    'id_detalle_pedido' => $idDetalle++,
-                    'id_pedido'         => $pedido->id_pedido,
-                    'id_producto'       => (int)$idProd,
-                    'cantidad'          => (int)$it['cantidad'],
-                    'precio_unitario'   => (float)$it['precio'],
-                    'descuento'         => 0,
-                ]);
-            }
-
-            // (Opcional) Crear registro de pago (si eligió forma de pago)
-            $idPago = null;
-            if($req->filled('id_forma_pago')){
-                $idPago = $this->nextId(DetallesDePago::class, 'id_pago');
-                DetallesDePago::create([
-                    'id_pago'       => $idPago,
-                    'monto'         => $resumen['total'],
-                    'fecha_pago'    => now()->toDateString(),
-                    'id_forma_pago' => (int)$req->input('id_forma_pago'),
-                ]);
-            }
-
-            // Crear factura
-            $idFactura = $this->nextId(Factura::class, 'id_factura');
-            Factura::create([
-                'id_factura'           => $idFactura,
-                'fecha'                => now()->toDateString(),
-                'id_cliente'           => $req->input('id_cliente'),
-                'id_forma_pago'        => $req->input('id_forma_pago'),
-                'numero_items_factura' => $resumen['items'],
-                'id_pago'              => $idPago,
-                'monto_total_producto' => $resumen['subtotal'], // sin IVA
-                'monto_final'          => $resumen['total'],    // con IVA
-            ]);
-
-            DB::commit();
-            // Limpiar carrito
-            $req->session()->forget('cart');
-
-            return redirect()->route('productos.index')->with('ok',"Factura #$idFactura creada");
-        } catch (\Throwable $e){
-            DB::rollBack();
-            report($e);
-            return back()->withErrors('No se pudo facturar: '.$e->getMessage());
+            // stock (descuento)
+            $prod->stock = (int)$prod->stock - (int)$it['cantidad'];
+            $prod->save();
         }
+
+        // 4) (Opcional) crear pago
+        $idPago = null;
+        if ($req->filled('id_forma_pago')) {
+            $idPago = $this->nextId(DetallesDePago::class, 'id_pago');
+            DetallesDePago::create([
+                'id_pago'       => $idPago,
+                'monto'         => $resumen['total'],
+                'fecha_pago'    => now()->toDateString(),
+                'id_forma_pago' => (int)$req->input('id_forma_pago'),
+            ]);
+        }
+
+        // 5) Crear factura
+        $idFactura = $this->nextId(Factura::class, 'id_factura');
+        Factura::create([
+            'id_factura'           => $idFactura,
+            'fecha'                => now()->toDateString(),
+            'id_cliente'           => $req->input('id_cliente'),
+            'id_forma_pago'        => $req->input('id_forma_pago'),
+            'numero_items_factura' => $resumen['items'],
+            'id_pago'              => $idPago,
+            'monto_total_producto' => $resumen['subtotal'],
+            'monto_final'          => $resumen['total'],
+        ]);
+
+        DB::commit();
+
+        // Limpiar carrito
+        $req->session()->forget('cart');
+
+        return redirect()->route('productos.index')->with('ok', "Factura #{$idFactura} creada. Stock actualizado.");
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        return back()->withErrors('No se pudo facturar: '.$e->getMessage());
     }
 }
+
+}
+

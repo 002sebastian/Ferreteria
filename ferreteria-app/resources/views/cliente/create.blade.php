@@ -7,6 +7,11 @@
       <a class="btn" href="{{ route('clientes.index') }}">Volver</a>
     </div>
 
+    {{-- Aviso: el ID se asigna automáticamente en el servidor --}}
+    @if(isset($siguienteId))
+      <div class="alert">El próximo ID se asignará automáticamente: <strong>{{ $siguienteId }}</strong>.</div>
+    @endif
+
     <form method="POST" action="{{ route('clientes.store') }}">
       @csrf
       @include('cliente._form')

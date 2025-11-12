@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('content')
+@section('content') 
   <div class="card">
     <div class="card-header">
       <h2 style="margin:0;">Clientes</h2>
@@ -46,6 +46,8 @@
 
     <div style="margin-top:12px;">
       {{ $clientes->links() }}
-    </div>
-  </div>
-@endsection
+    </div> 
+  </div> 
+@endsection   
+
+

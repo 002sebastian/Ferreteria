@@ -10,7 +10,7 @@ Route::view('/', 'home')->name('home');
 
 // CRUD Clientes
 Route::resource('clientes', ClienteController::class)->parameters([
-    'clientes' => 'cliente'
+    'clientes' => 'cliente'  // usa {cliente} como parámetro (route-model binding)
 ]);
 
 // Catálogo de productos (listar/ver)
